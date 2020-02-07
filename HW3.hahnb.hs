@@ -3,6 +3,8 @@
    --     Sheldon Roberts robeshel@oregonstate.edu
 module MiniLogo where
 import Data.List
+import Data.Stack
+import Data.Typeable
 
 -- num	::=	(any natural number)             --Integers
 -- var	::=	(any variable name)              --String
@@ -76,16 +78,51 @@ steps_helper n [x, y] = [Call "line" [Variable "x", Variable "y", Variable "x", 
     Call "line" [Variable "x", Add (Variable "y") (Number 1), Add (Variable "x") (Number 1), Add (Variable "y") (Number 1)] ] ++ steps_helper (n - 1) [x + 1, y + 1]
 
 
+-- define macros(Prog, [Macros]) {
+--
+-- };
 macros :: Prog -> [Macro]
-macros = undefined;
+macros []     = []
+macros (x:xs) = case x of
+    Def m _ _ -> m : macros xs
+    otherwise -> macros xs
 
 
 pretty :: Prog -> String
-pretty = undefined;
+pretty []     = ""
+pretty (x:xs) = case x of
+    Pen m               -> show ("Pen " ++ prettyPen m) ++ "\n" ++ pretty xs
+    Move e1 e2          -> show ("Move ") ++ prettyExpression [e1, e2] ++ "\n" ++ pretty xs
+    Def m v p           -> show ("Def " ++ m ++ " ") ++ prettyVars v ++ pretty p ++ "\n" ++ pretty xs
+    Call m e            -> show ("Call " ++ m ++ " ") ++ prettyExpression e ++ "\n" ++ pretty xs
+
+
+prettyPen :: Mode -> String
+prettyPen Up   = "Up"
+prettyPen Down = "Down"
+
+
+prettyExpression :: [Expr] -> String
+prettyExpression []     = ""
+prettyExpression (e:es) = case e of
+    Number i -> show i ++ ", " ++ prettyExpression es
+    Variable v -> v ++ ", " ++ prettyExpression es
+    Add e1 e2 -> prettyExpression [e1] ++ " + " ++ prettyExpression [e2] ++ ", " ++ prettyExpression es
+
+
+prettyVars :: [Var] -> String
+prettyVars []     = ""
+prettyVars (v:vs) = show v ++ prettyVars vs
+
 
 
 optE :: Expr -> Expr
-optE = undefined;
+optE = undefined --Add e1 e2 =
+--     if (typeOf (e1) == Number && typeOf (e2) == Number)
+--         then stackPop (stackPush (e1))
+--     else
+
+
 
 
 optP :: Prog -> Prog
@@ -94,4 +131,28 @@ optP = undefined;
 
 
 
---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+__
