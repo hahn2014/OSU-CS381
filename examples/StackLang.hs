@@ -71,23 +71,49 @@ genSum (x:xs) = genSum xs ++ [PushN x, Add]
 
 
 --
--- * Semantics of StackLang (later)
+-- * Semantics of StackLang
 --
 
 
 -- 6. Identify/define a semantics domain for Cmd and for Prog.
 --
 --    Things we need:
---      * ...
+--      * stack
+--          * int
+--          * bool
+--      * error
+
+type Stack = [Either Int Bool]
+
+type Domain = Stack -> Maybe Stack
 
 
 
 -- 7. Define the semantics of a StackLang command (ignore If at first).
-cmd = undefined
+cmd :: Cmd -> Domain
+cmd (PushN i)    = \s -> Just (Left i : s)
+cmd (PushB b)    = \s -> Just (Right b : s)
+cmd Add          = \s -> case s of
+                        (Left i : Left j : s') -> Just (Left (i + j) : s')
+                        _ -> Nothing
+cmd Mul          = \s -> case s of
+                        (Left i : Left j : s') -> Just (Left (i * j) : s')
+                        _ -> Nothing
+cmd Equ          = \s -> case s of
+                        (Left i : Left j : s')   -> Just (Right (i == j) : s')
+                        (Right a : Right b : s') -> Just (Right (a == b) : s')
+                        _ -> Nothing
+cmd (IfElse t e) = \s -> case s of
+                        (Right True : s')  -> prog t s'   -- Only match with true booleans
+                        (Right False : s') -> prog e s'   -- Only match with false booleans
+                        _ -> Nothing
 
 -- 8. Define the semantics of a StackLang program.
-prog = undefined
-
+prog :: Prog -> Domain
+prog []    = \s -> Just s
+prog (c:p) = \s -> case cmd c s of
+                    Just s' -> prog p s'
+                    _ -> Nothing
 
 -- | Run a program on an initially empty stack.
 --
@@ -100,5 +126,8 @@ prog = undefined
 --   >>> run [PushN 3, Add, PushN 4]
 --   Nothing
 --
--- run :: Prog -> Maybe Stack
--- run p = prog p []
+run :: Prog -> Maybe Stack
+run p = prog p []
+
+
+-- end of file
