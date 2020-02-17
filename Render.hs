@@ -4,24 +4,30 @@
 --
 --   NOTE: You should not change the definitions in this file!
 --
-module Render (Point,Line,toHTML,toGridHTML) where
-
+module Render (Point,FPoint,Line,FLine,toHTML,toFHTML,toGridHTML,toGridFHTML) where
 import Data.List (intercalate)
-
 
 -- | A point is a cartesian pair (x,y).
 type Point = (Int,Int)
+type FPoint = (Double,Double)
 
 -- | A line is defined by its endpoints.
 type Line = (Point,Point)
+type FLine = (FPoint,FPoint)
 
 -- | Output a list of lines as an HTML5 file containing an SVG image.
 toHTML :: [Line] -> IO ()
-toHTML ls = writeFile "MiniMiniLogo.html" (header ++ content ls ++ footer)
+toHTML ls = writeFile "tesseract.html" (header ++ content ls ++ footer)
+
+toFHTML :: [FLine] -> IO ()
+toFHTML ls = writeFile "tesseract.html" (header ++ floatingContent ls ++ footer)
 
 -- | Alternate version of 'toHTML' that adds a grid to the background.
 toGridHTML :: [Line] -> IO ()
-toGridHTML ls = writeFile "MiniMiniLogo.html" (header ++ grid ++ content ls ++ footer)
+toGridHTML ls = writeFile "tesseract.html" (header ++ grid ++ content ls ++ footer)
+
+toGridFHTML :: [FLine] -> IO ()
+toGridFHTML ls = writeFile "tesseract.html" (header ++ grid ++ floatingContent ls ++ footer)
 
 --
 -- Private definitions. All definitions below this point will not be visible
@@ -29,10 +35,15 @@ toGridHTML ls = writeFile "MiniMiniLogo.html" (header ++ grid ++ content ls ++ f
 --
 
 scale, margin, width, height :: Int
-scale  = 10
-margin = 10
-width  = 800
-height = 400
+dscale, dmargin, dwidth, dheight :: Double
+scale   = 10
+dscale  = 10.0
+margin  = 10
+dmargin = 10.0
+width   = 800
+dwidth  = 800.0
+height  = 400
+dheight = 400.0
 
 gridStep = 5
 maxX = width `div` scale
@@ -61,11 +72,19 @@ grid = unlines (map (poly gridStyle) lines)
 content :: [Line] -> String
 content = unlines . map (poly drawStyle) . chunk
 
+floatingContent :: [FLine] -> String
+floatingContent = unlines . map (floatingPoly drawStyle) . floatingChunk
+
 -- | A canvas-adjusted point as a string.
 point :: Point -> String
 point (x,y) = show xp ++ "," ++ show yp
   where xp = x*scale + margin
         yp = height - y*scale + margin
+
+floatingPoint :: FPoint -> String
+floatingPoint (x,y) = show xp ++ "," ++ show yp
+  where xp = x * dscale + dmargin
+        yp = dheight - y * dscale + dmargin
 
 -- | Chunk a bunch of lines into sequences of connected points.
 chunk :: [Line] -> [[Point]]
@@ -75,8 +94,21 @@ chunk ((p,q):ls) | q == head ps = (p:ps) : pss
                  | otherwise    = [p,q] : ps : pss
   where (ps:pss) = chunk ls
 
+floatingChunk :: [FLine] -> [[FPoint]]
+floatingChunk []         = []
+floatingChunk [(p,q)]    = [[p,q]]
+floatingChunk ((p,q):ls) | q == head ps = (p:ps) : pss
+                 | otherwise    = [p,q] : ps : pss
+  where (ps:pss) = floatingChunk ls
+
+
 -- | Draw a sequence of connected points.
 poly :: String -> [Point] -> String
 poly style ps = "<polyline points='"
              ++ intercalate " " (map point ps)
+             ++ "' style='" ++ style ++ "'/>"
+
+floatingPoly :: String -> [FPoint] -> String
+floatingPoly style fps = "<polyline points='"
+             ++ intercalate " " (map floatingPoint fps)
              ++ "' style='" ++ style ++ "'/>"

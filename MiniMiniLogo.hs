@@ -12,6 +12,7 @@ import Render
 
 -- | A program is a sequence of commands.
 type Prog = [Cmd]
+type FProg = [FCmd]
 
 -- | The mode of the pen.
 data Mode = Down | Up
@@ -21,6 +22,11 @@ data Mode = Down | Up
 data Cmd = Pen Mode
          | Move Int Int
          | MoveP Point
+  deriving (Eq,Show)
+
+data FCmd = FPen Mode
+         | FMove Double Double
+         | FMoveP FPoint
   deriving (Eq,Show)
 
 -- | Generate a MiniMiniLogo program that draws a 2x2 box starting from the
