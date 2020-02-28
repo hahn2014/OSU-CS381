@@ -1,13 +1,29 @@
-# (Programming Name Here) Read-Me
+# Sea++ Read-Me
 
 ### Meet The Team
-* Bryce Hahn      - (932-819-555) @Hahn2014
-* Brenden Smith   - (932-   -   ) @TaterThots
-* Sheldon Roberts - (932-   -   ) @robeshel
-* April           - (932-   -   ) @unknown
+* Bryce Hahn      - (932-819-555) @hahn2014
+* Brenden Smith   - (932-546-035) @smitbre2
+* Sheldon Roberts - (933-021-566) @robeshel
+* April James     - (932-724-994) @apriljames
 
-## TLDR (Programming Name Here)
-> (Programming Name Here) is an Object Oriented Stack Language with interesting features...
+## TLDR Sea++
+> Sea++ is an Stack Based Language with interesting features:
 
-# How To Compile A (Programming Name Here) File
-run it
+> Data types and Operations
+> Conditionals
+> Recursion/loops
+> Stack manipulation operations
+> Procedures/functions with arguments
+> Static type system
+> Strings and operations
+
+> This language uses stacks whenever it can.
+> It is very focused on core features that work well, rather than expressionality.
+> We hope you like the name as much as we do :)
+
+# How To Compile A SPP File
+Run: GHCi seapp.hs
+exAdd1
+exMul1
+exDiv1
+exIf1
