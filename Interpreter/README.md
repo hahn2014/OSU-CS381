@@ -22,8 +22,11 @@
 > We hope you like the name as much as we do :)
 
 # How To Compile A SPP File
-Run: GHCi seapp.hs
-exAdd1
-exMul1
-exDiv1
-exIf1
+1. ghci seapp.hs
+2. exAdd1
+3. exMul1
+4. exDiv1
+5. exIf1
+
+Note:
+> Known bugs include not compiling as our type system isn't fully furnished.
