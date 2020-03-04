@@ -81,7 +81,7 @@ sem (Lit i)    = I i
 sem (Add l r)  = case (sem l, sem r) of
                     (I i, I j) -> I (i + j)
                     _ -> Error
-sen (Mul l r)  = case (sem l, sem r) of
+sem (Mul l r)  = case (sem l, sem r) of
                     (I i, I j) -> I (i * j)
                     _ -> Error
 sem (Equ l r)  = case (sem l, sem r) of
@@ -109,7 +109,7 @@ true :: Expr
 true = Equ (Lit 1) (Lit 0)
 
 false :: Expr
-true = Equ (Lit 0) (Lit 1)
+false = Equ (Lit 0) (Lit 1)
 
 neg :: Expr -> Expr
 neg e = Mul (Lit (-1)) e
@@ -125,25 +125,59 @@ or e1 e2 = If e1 true e2
 
 -- | Example program that uses our syntactic sugar.
 --     not true || 3 == -3 && (true || false)
-ex5 = Or (not true) (And (Equ (Lit 3) (neg (Lit 3))) (or true false))
+ex5 = or (not true) (and (Equ (Lit 3) (neg (Lit 3))) (or true false))
 
 
 --
--- * Statically typed variant (later)
+-- * Statically typed variant (now!)
 --
 
 -- 1. Define the syntax of types
+data Type = TBool | TInt | TError
+  deriving (Eq,Show)
 
 
 -- 2. Define the typing relation.
-
-typeOf = undefined
+typeOf :: Expr -> Type
+typeOf (Lit i)    = TInt
+typeOf (Add l r)  = case (typeOf l, typeOf r) of
+                      (TInt, TInt) -> TInt
+                      _ -> TError
+typeOf (Mul l r)  = case (typeOf l, typeOf r) of
+                      (TInt, TInt) -> TInt
+                      _ -> TError
+typeOf (Equ l r)  = case (typeOf l, typeOf r) of
+                      (TInt, TInt)   -> TBool
+                      (TBool, TBool) -> TBool
+                      _ -> TError
+typeOf (If c t e) = case (typeOf c, typeOf t, typeOf e) of
+                      (TBool, tt, te) -> if tt == te then tt else TError
+                      _ -> TError
 
 
 -- 3. Define the semantics of type-correct programs.
+sem' :: Expr -> Either Int Bool
+sem' (Lit i)    = Left i
+sem' (Add l r)  = Left (evalInt l + evalInt r)
+sem' (Mul l r)  = Left (evalInt l * evalInt r)
+sem' (Equ l r)  = Right (sem' l == sem' r)
+sem' (If c t e) = if evalBool c then sem' t else sem' e
 
-sem' = undefined
+-- | Helper function to evaluate an Expr to an Int.
+evalInt :: Expr -> Int
+evalInt e = case sem' e of
+              Left i -> i
+              _ -> error "internal error: expected Int, got something else!"
 
+-- | Helper function to evaluate an Expr to an Bool.
+evalBool :: Expr -> Bool
+evalBool e = case sem' e of
+               Right b -> b
+               _ -> error "internal error: expected Bool, got something else!"
 
 -- 4. Define our interpreter.
-eval = undefined
+eval :: Exp -> Value
+eval e = case typeOf e of
+          TInt   -> I (evalInt e)
+          TBool  -> B (evalBool e)
+          TError -> Error
