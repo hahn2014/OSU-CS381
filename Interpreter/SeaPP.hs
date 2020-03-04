@@ -16,9 +16,8 @@ import Prelude hiding (Num)
 -- |                                                                        | --
 -- | number := Integer | Floating Point | Double                            | --
 -- | string := Char* | Char                                                 | --
--- | cmd    := PushN           push a number on the stack                   | --
--- |         | PushB           push a boolean on the stack                  | --
--- |         | PushStr         push a string on the stack                   | --
+-- | type   := number | bool | string | error                               | --
+-- | cmd    := Push            push a type on the stack                     | --
 -- |         | Add             add the top two numbers on the stack         | --
 -- |         | Sub             subtract the top two numbers on the stack    | --
 -- |         | Mul             multiply the top two numbers on the stack    | --
@@ -37,52 +36,70 @@ data NumberType = Int Int
 
 data StringType = String [Char]
                 | Char Char
-                deriving(Eq,Show)
+                deriving(Eq,Show,Read)
 
-data Cmd      = PushN NumberType
-              | PushB Bool
-              | PushStr StringType
-              | Add
-              | Sub
-              | Mul
-              | Div
-              | Equ
-              | IfElse Prog Prog
-              deriving(Eq,Show)
+data Type = Num  NumberType
+          | Bool Bool
+          | Str  StringType
+          | Error
+          deriving(Eq,Show)
+
+data Cmd = Push Type
+         | Add
+         | Sub
+         | Mul
+         | Div
+         | Equ
+         | IfElse Prog Prog
+         deriving(Eq,Show)
 
 type Prog = [Cmd]
-type Stack = [Either StringType (Either NumberType Bool)]
+type Stack = [Type]
 type Domain = Stack -> Maybe Stack
 
 
-
+-- define the command semantics in terms of a domain
 cmd :: Cmd -> Domain
-cmd PushN n      = \s -> Just (NumberType n : s')
-cmd PushB b      = \s -> Just (Bool b : s')
-cmd PushStr str  = Just (StringType str : s')
-
+cmd (Push v)     = \s -> case v of
+                    (Num i)  -> Just (Num i : s)
+                    (Bool b) -> Just (Bool b : s)
+                    (Str st) -> Just (Str st : s)
+                    _ -> Nothing
 cmd Add          = \s -> case s of
-                    (NumberType i : NumberType j : s') -> Just (NumberType (i+j) : s')
+                    (Num i : Num j : s') -> Just (Num (evalInt i + evalInt j) : s')
                     _ -> Nothing
 cmd Sub          = \s -> case s of
-                    (NumberType i : NumberType j : s') -> Just (NumberType (i-j) : s')
+                    (Num i : Num j : s') -> Just (Num (evalInt i - evalInt j) : s')
                     _ -> Nothing
 cmd Mul          = \s -> case s of
-                    (NumberType x : NumberType y : s') -> Just (NumberType (x*y) : s')
+                    (Num x : Num y : s') -> Just (Num (evalInt x * evalInt y) : s')
                     _ -> Nothing
 cmd Div          = \s -> case s of
-                    (NumberType x : NumberType y : s') -> Just (NumberType (x/y) : s')
+                    (Num x : Num y : s') -> Just (Num (evalInt x / evalInt y) : s')
                     _ -> Nothing
-
 cmd Equ          = \s -> case s of
-                    (NumberType x : NumberType y : s')  -> Just (Bool (x == y) : s')
-                    (Bool i : Bool j : s')              -> Just (Bool (i == j) : s')
-                    (StringType z : StringType k : s')  -> Just (Bool (z == k) : s')
+                    (Num x : Num y : s')   -> Just (Bool (x == y) : s')
+                    (Bool i : Bool j : s') -> Just (Bool (i == j) : s')
+                    (Str z : Str k : s')   -> Just (Bool (z == k) : s')
                     _  -> Nothing
-cmd (IfElse t e) = \s -> case s of
-                         (Bool True  : s') -> prog t s'
-                         (Bool False : s') -> prog e s'
-                         _ -> Nothing
+cmd (IfElse t e)   = \s -> case s of
+                     (Bool True)  -> prog t s'  -- if statement was true
+                     (Bool False) -> prog e s'  -- if statement was false
+                    _ -> Nothing
+--
+-- --
+ evalInt :: Value -> Int
+ evalInt v = case v of
+               (Num n) -> case n of
+                   (Int i) -> i
+                   _ -> error "internal error: expected Int, got a decimal!" --ignore floats and doubles
+               _ -> error "internal error: expected Int, got something else!"
+
+ -- | Helper function to evaluate an Expr to an Bool.
+ evalBool :: Value -> Bool
+ evalBool v = case v of
+                (Bool b) -> b
+                _ -> error "internal error: expected Bool, got something else!"
 
 
 isEmpty :: Stack -> Bool
@@ -103,17 +120,18 @@ run :: Prog -> Maybe Stack
 run p = prog p []
 
 
-exAdd1 :: Prog
-exAdd1  = [PushN 3, PushNum 2, Add]   --Expect 5
+-- exAdd1 :: Prog
+-- exAdd1  = [Push (Num 3), Push (Num 2), Add]     --Expect 5
+--
+-- exMul1 :: Prog
+-- exMul1 = [Push (Num 5), Push (Num 10), Mul]     --Expect 50
+--
+-- exDiv1 :: Prog
+-- exDiv1 = [Push (Num 10), Push (Num 2), Div]     --Expect 5
 
-exMul1 :: Prog
-exMul1 = [PushN 5, PushN 10, Mul]     --Expect 50
 
-exDiv1 :: Prog
-exDiv1 = [PushN 10, PushN 2, Div]     --Expect 5
-
-exIf1 :: Prog
-exIf1 = [PushB True, IfElse PushB True PushB False] --Expect True
+-- exIf1 :: Prog
+-- exIf1 = [Push (Bool True), IfElse (Push (Bool True)) (Push (Bool False))] --Expect True
 
 
 
