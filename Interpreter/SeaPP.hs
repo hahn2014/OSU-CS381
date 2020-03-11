@@ -42,6 +42,7 @@ data StringType = String [Char]
 data Type = Num  NumberType
           | Bool Bool
           | Str  StringType
+          | Var  Variable -- | Define a variable for a function macro
           | Error StringType -- | Return error with a message
           deriving(Eq,Show)
 
@@ -52,13 +53,14 @@ data Cmd = Push Type  -- | Push all primative types to stack
          | Div -- |      "
          | Equ -- |      "
          | IfElse Prog Prog -- | Conditional Statement piping
-         | Define StringType [Type] Prog  -- | Create a function
-         | Call StringType [Type]           -- | Call function with arguments
+         | Define StringType [Variable] Prog  -- | Create a function
+         | Call StringType [Type]             -- | Call function with arguments
          deriving(Eq,Show)
 
 
 
 type Prog = [Cmd]
+type Variable = StringType
 type Stack = [Type]
 type Domain = Stack -> Maybe Stack
 
@@ -69,36 +71,48 @@ cmd (Push v)     = \s -> case v of
                         (Num i)  -> Just (Num i : s)
                         (Bool b) -> Just (Bool b : s)
                         (Str st) -> Just (Str st : s)
-                        _ -> Nothing
+                        _ -> Just (Error (String "Error pushing value, not a valid type.") : [])
 cmd Add          = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i + j) : s')
                         (Num i : Num j : s') -> case (i, j) of
-                                        (Int i', Int j') -> Just Num (i' + j')
-                                        (Double a, Double b) -> Just Num (a + b)
-                                        (Float c, Float d) -> Just Num (c + d)
-                        _ -> Nothing
+                            (Int a, Int b)       -> Just (Num (Int (a + b)) : s')
+                            (Double c, Double d) -> Just (Num (Double (c + d)) : s')
+                            (Float e, Float f)   -> Just (Num (Float (e + f)) : s')
+                        _ -> Just (Error (String "Error adding, values on stack were not of the Numerical Type") : [])
 cmd Sub          = \s -> case s of
-                        (Num i : Num j : s') -> Just (Num (i - j) : s')
-                                        ()
-
-                        _ -> Nothing
+                    --    (Num i : Num j : s') -> Just (Num (i - j) : s')
+                        (Num i : Num j : s') -> case (i, j) of
+                            (Int a, Int b)       -> Just (Num (Int (a - b)) : s')
+                            (Double c, Double d) -> Just (Num (Double (c - d)) : s')
+                            (Float e, Float f)   -> Just (Num (Float (e - f)) : s')
+                        _ -> Just (Error (String "Error subtracting, values on stack were not of the Numerical Type") : [])
 cmd Mul          = \s -> case s of
-                        (Num x : Num y : s') -> case of (x y) of
-                                                (Int x : Int y) -> Just Num (x * y)
-
-                        _ -> Nothing
+                    --    (Num i : Num j : s') -> Just (Num (i * j) : s')
+                        (Num i : Num j : s') -> case (i, j) of
+                            (Int a, Int b)       -> Just (Num (Int (a * b)) : s')
+                            (Double c, Double d) -> Just (Num (Double (c * d)) : s')
+                            (Float e, Float f)   -> Just (Num (Float (e * f)) : s')
+                        _ -> Just (Error (String "Error multiplying, values on stack were not of the Numerical Type") : [])
 cmd Div          = \s -> case s of
-                        (Num x : Num y : s') -> Just (Num (x / y) : s')
-                        _ -> Nothing
+                    --    (Num x : Num y : s') -> Just (Num (x / y) : s')
+                        (Num i : Num j : s') -> case (i, j) of
+                            (Int a, Int b)       -> Just (Num (Int (a `div` b)) : s')
+                            (Double c, Double d) -> Just (Num (Double (c / d)) : s')
+                            (Float e, Float f)   -> Just (Num (Float (e / f)) : s')
+                        _ -> Just (Error (String "Error dividing, values on stack were not of the Numerical Type") : [])
 cmd Equ          = \s -> case s of
-                        (Num x : Num y : s')   -> Just (Bool (x == y) : s')
+                    --    (Num x : Num y : s')   -> Just (Bool (x == y) : s')
+                        (Num i : Num j : s') -> case (i, j) of
+                                (Int a, Int b)       -> Just (Bool (a == b) : s')
+                                (Double c, Double d) -> Just (Bool (c == d) : s')
+                                (Float e, Float f)   -> Just (Bool (e == f) : s')
                         (Bool i : Bool j : s') -> Just (Bool (i == j) : s')
                         (Str z : Str k : s')   -> Just (Bool (z == k) : s')
-                        _  -> Nothing
-cmd (IfElse t e) = (\s -> case s of
+                        _ -> Just (Error (String "Error comparing, values on stack were not a valid type") : [])
+cmd (IfElse t e) = \s -> case s of
                         (Bool True : s')  -> prog t s'  -- if statement was true
                         (Bool False : s') -> prog e s'  -- if statement was false
-                        _ -> Nothing)
+                        _ -> Just (Error (String "Error in conditional, stack value was not of the Boolean Type") : [])
 -- Don't need to include Define and Call in the cmd function-no need to
 -- evaluate/ add to domain
 -- cmd (Define f t p) = \s -> case s of
@@ -109,43 +123,48 @@ cmd (IfElse t e) = (\s -> case s of
 
 
 
-addNum :: NumberType -> NumberType -> NumberType
-addNum l r = case (typeOf l, typeOf r) of
-                (Right (Left x), Right (Left r))    ->
-                (Right (Left Double)) ->
-                (Right (Left Float))  ->
-                _ ->
+-- addNum :: NumberType -> NumberType -> NumberType
+-- addNum l r = case (typeOf l, typeOf r) of
+--                 (Right (Left x), Right (Left r))    ->
+--                 (Right (Left Double)) ->
+--                 (Right (Left Float))  ->
+--                 _ ->
 
 quadruple :: NumberType -> Cmd
-quadruple (Num x) = Call double [Num x]
+quadruple (Int i)    = Call (String "double") [Num (Int i)]
+quadruple (Double d) = Call (String "double") [Num (Double d)]
+quadruple (Float f)  = Call (String "double") [Num (Float f)]
 
 double :: Cmd
-double = Define "double" [x] [Push NumberType x, Add]
+double = Define (String "double") [Char 'x'] [Push (Var (Char 'x')), Add]
 
 negate :: Cmd
-negate = Define "negate" [x] [Push (NumberType -1), Push NumberType x, Mul]
+negate = Define (String "negate") [Char 'x'] [Push (Num (Int 0)), Push (Num (Int 1)), Sub, Push (Var (Char 'x')), Mul]
 
-while :: Cmd
-while = Define "while" [b] [ case b of
-                                (Bool True)  -> while
-
-                            ]
+-- while :: Cmd
+-- while = Define (String "while") ["b"] [ case (Var "b") of
+--                                 (Bool True)  -> Nothing
+--
+--                             ]
 
 typeOf :: Type -> Either Type (Either NumberType StringType)
-typeOf (Num x) = case x of
-                (Int _)    -> Right (Left Int)
-                (Double _) -> Right (Left Double)
-                (Float _)  -> Right (Left Float)
-typeOf (Bool _) = Left Bool
-typeOf (Str s)  = case s of
-                (String)  -> Right (Right String)
-                (Char)    -> Right (Right Char)
-typeOf _        = Left Error "Invalid Type"
+typeOf = undefined
+-- typeOf (Num x) = case x of
+--                 (Int _)    -> Right (Left Int)
+--                 (Double _) -> Right (Left Double)
+--                 (Float _)  -> Right (Left Float)
+-- typeOf (Bool _) = Left Bool
+-- typeOf (Str s)  = case s of
+--                 (String _)  -> Right (Right String)
+--                 (Char _)    -> Right (Right Char)
+-- typeOf _        = Left (Error (String "Invalid Type"))
 -- --
+
+
 evalInt :: NumberType -> Int
 evalInt t = case t of -- | Sort by type
                 (Int i) -> i -- | Only look for integers
-                _ -> error "internal error: expected Int, got a decimal!" -- | Ignore floats and doubles
+                _ -> error "Expected an Int, got a decimal value!" -- | Ignore floats and doubles
 
 
  -- | Helper function to evaluate an Expr to an Bool.
