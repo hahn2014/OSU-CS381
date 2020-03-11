@@ -5,8 +5,7 @@
 -- |                                                                        | --
 -- | Authors: Brenden Smith (932-546-035), Bryce Hahn (932-819-555),        | --
 -- |            Sheldon Roberts (933-021-566), April James (932-724-994)    | --
--- | Last Modified: 2/27/20                                                 | --
--- | Last Change  : n/a                                                     | --
+-- | Last Modified: 3/11/20                                                 | --
 --------------------------------------------------------------------------------
 module SeaPP where
 import Prelude hiding (Num)
@@ -24,14 +23,16 @@ import Prelude hiding (Num)
 -- |         | Div             divide the top two numbers on the stack      | --
 -- |         | Equ             check equality of top two items on stack     | --
 -- |         | IfElse          conditional if else statement                | --
+-- |         | Define          define a function macro                      | --
+-- |         | Call            call a defined function macro                | --
 -- | prog   := cmd*                                                         | --
 -- | stack  := number | bool                                                | --
 -- | domain := Stack -> Maybe Stack                                         | --
 -- |                                                                        | --
 --------------------------------------------------------------------------------
 data NumberType = Int Int
-                -- | Float Float
-                -- | Double Double
+                | Float Float
+                | Double Double
                 deriving(Eq,Show)
 
 data StringType = String [Char]
@@ -41,17 +42,21 @@ data StringType = String [Char]
 data Type = Num  NumberType
           | Bool Bool
           | Str  StringType
-          | Error
+          | Error StringType -- | Return error with a message
           deriving(Eq,Show)
 
-data Cmd = Push Type
-         | Add
-         | Sub
-         | Mul
-         | Div
-         | Equ
-         | IfElse Prog Prog
+data Cmd = Push Type  -- | Push all primative types to stack
+         | Add -- | Stack work
+         | Sub -- |      "
+         | Mul -- |      "
+         | Div -- |      "
+         | Equ -- |      "
+         | IfElse Prog Prog -- | Conditional Statement piping
+         | Define StringType [Type] Prog  -- | Create a function
+         | Call StringType [Type]           -- | Call function with arguments
          deriving(Eq,Show)
+
+
 
 type Prog = [Cmd]
 type Stack = [Type]
@@ -61,45 +66,71 @@ type Domain = Stack -> Maybe Stack
 -- define the command semantics in terms of a domain
 cmd :: Cmd -> Domain
 cmd (Push v)     = \s -> case v of
-                    (Num i)  -> Just (Num i : s)
-                    (Bool b) -> Just (Bool b : s)
-                    (Str st) -> Just (Str st : s)
-                    _ -> Nothing
+                        (Num i)  -> Just (Num i : s)
+                        (Bool b) -> Just (Bool b : s)
+                        (Str st) -> Just (Str st : s)
+                        _ -> Nothing
 cmd Add          = \s -> case s of
-                    (Num i : Num j : s') -> Just (Num (evalInt i + evalInt j) : s')
-                    _ -> Nothing
+                        (Num i : Num j : s') -> Just (Num (i + j) : s')
+                        _ -> Nothing
 cmd Sub          = \s -> case s of
-                    (Num i : Num j : s') -> Just (Num (evalInt i - evalInt j) : s')
-                    _ -> Nothing
+                        (Num i : Num j : s') -> Just (Num (i - j) : s')
+                        _ -> Nothing
 cmd Mul          = \s -> case s of
-                    (Num x : Num y : s') -> Just (Num (evalInt x * evalInt y) : s')
-                    _ -> Nothing
+                        (Num x : Num y : s') -> Just (Num (x * y) : s')
+                        _ -> Nothing
 cmd Div          = \s -> case s of
-                    (Num x : Num y : s') -> Just (Num (evalInt x / evalInt y) : s')
-                    _ -> Nothing
+                        (Num x : Num y : s') -> Just (Num (x / y) : s')
+                        _ -> Nothing
 cmd Equ          = \s -> case s of
-                    (Num x : Num y : s')   -> Just (Bool (x == y) : s')
-                    (Bool i : Bool j : s') -> Just (Bool (i == j) : s')
-                    (Str z : Str k : s')   -> Just (Bool (z == k) : s')
-                    _  -> Nothing
-cmd (IfElse t e)   = \s -> case s of
-                     (Bool True)  -> prog t s'  -- if statement was true
-                     (Bool False) -> prog e s'  -- if statement was false
-                    _ -> Nothing
---
+                        (Num x : Num y : s')   -> Just (Bool (x == y) : s')
+                        (Bool i : Bool j : s') -> Just (Bool (i == j) : s')
+                        (Str z : Str k : s')   -> Just (Bool (z == k) : s')
+                        _  -> Nothing
+cmd (IfElse t e) = (\s -> case s of
+                        (Bool True : s')  -> prog t s'  -- if statement was true
+                        (Bool False : s') -> prog e s'  -- if statement was false
+                        _ -> Nothing)
+-- cmd (Define f t p) = \s -> case s of
+--                         (Num n : s') -> prog p s'
+--                         _ -> Nothing
+cmd (Call f t)     =
+
+
+
+addNum :: NumberType -> NumberType -> NumberType
+addNum l r = case (typeof l, typeof r) of
+                ()
+
+quadruple :: Cmd
+quadruple = Call double [Num 5]
+
+double :: Cmd
+double = Define "double" [x] [Push NumberType x, Add]
+
+negate :: Cmd
+negate = Define "negate" [x] [Push (NumberType -1), Push NumberType x, Mul]
+
+while :: Cmd
+while = Define "while" [b] [ case b of
+                                (Bool True)  -> while
+
+                            ]
+
+typeOf :: Type
+typeOf x =
 -- --
- evalInt :: Value -> Int
- evalInt v = case v of
-               (Num n) -> case n of
-                   (Int i) -> i
-                   _ -> error "internal error: expected Int, got a decimal!" --ignore floats and doubles
-               _ -> error "internal error: expected Int, got something else!"
+evalInt :: NumberType -> Int
+evalInt t = case t of -- | Sort by type
+                (Int i) -> i -- | Only look for integers
+                _ -> error "internal error: expected Int, got a decimal!" -- | Ignore floats and doubles
+
 
  -- | Helper function to evaluate an Expr to an Bool.
- evalBool :: Value -> Bool
- evalBool v = case v of
-                (Bool b) -> b
-                _ -> error "internal error: expected Bool, got something else!"
+-- evalBool :: Type -> Bool
+-- evalBool t = case t of -- | Sort by type
+--                 (Bool b) -> b -- | single out a boolean value
+--                 _ -> error "internal error: expected Bool, got something else!"
 
 
 isEmpty :: Stack -> Bool
@@ -109,6 +140,7 @@ isEmpty _  = False
 -- strEqu :: StringType -> StringType -> Bool -- use if "==" does not work for str comparison
 -- strEqu
 
+-- | Takes a Prog (list of Cmd),
 prog :: Prog -> Domain
 prog []    = \s -> Just s
 prog (c:p) = \s -> case cmd c s of
@@ -118,6 +150,11 @@ prog (c:p) = \s -> case cmd c s of
 
 run :: Prog -> Maybe Stack
 run p = prog p []
+
+
+
+
+
 
 
 -- exAdd1 :: Prog
