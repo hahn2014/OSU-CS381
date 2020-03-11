@@ -71,13 +71,21 @@ cmd (Push v)     = \s -> case v of
                         (Str st) -> Just (Str st : s)
                         _ -> Nothing
 cmd Add          = \s -> case s of
-                        (Num i : Num j : s') -> Just (Num (i + j) : s')
+                    --    (Num i : Num j : s') -> Just (Num (i + j) : s')
+                        (Num i : Num j : s') -> case (i, j) of
+                                        (Int i', Int j') -> Just Num (i' + j')
+                                        (Double a, Double b) -> Just Num (a + b)
+                                        (Float c, Float d) -> Just Num (c + d)
                         _ -> Nothing
 cmd Sub          = \s -> case s of
                         (Num i : Num j : s') -> Just (Num (i - j) : s')
+                                        ()
+
                         _ -> Nothing
 cmd Mul          = \s -> case s of
-                        (Num x : Num y : s') -> Just (Num (x * y) : s')
+                        (Num x : Num y : s') -> case of (x y) of
+                                                (Int x : Int y) -> Just Num (x * y)
+
                         _ -> Nothing
 cmd Div          = \s -> case s of
                         (Num x : Num y : s') -> Just (Num (x / y) : s')
@@ -91,19 +99,25 @@ cmd (IfElse t e) = (\s -> case s of
                         (Bool True : s')  -> prog t s'  -- if statement was true
                         (Bool False : s') -> prog e s'  -- if statement was false
                         _ -> Nothing)
+-- Don't need to include Define and Call in the cmd function-no need to
+-- evaluate/ add to domain
 -- cmd (Define f t p) = \s -> case s of
 --                         (Num n : s') -> prog p s'
 --                         _ -> Nothing
-cmd (Call f t)     =
+-- cmd (Call f t)   = \s -> case s of
+--                         ()
 
 
 
 addNum :: NumberType -> NumberType -> NumberType
-addNum l r = case (typeof l, typeof r) of
-                ()
+addNum l r = case (typeOf l, typeOf r) of
+                (Right (Left x), Right (Left r))    ->
+                (Right (Left Double)) ->
+                (Right (Left Float))  ->
+                _ ->
 
-quadruple :: Cmd
-quadruple = Call double [Num 5]
+quadruple :: NumberType -> Cmd
+quadruple (Num x) = Call double [Num x]
 
 double :: Cmd
 double = Define "double" [x] [Push NumberType x, Add]
@@ -117,8 +131,16 @@ while = Define "while" [b] [ case b of
 
                             ]
 
-typeOf :: Type
-typeOf x =
+typeOf :: Type -> Either Type (Either NumberType StringType)
+typeOf (Num x) = case x of
+                (Int _)    -> Right (Left Int)
+                (Double _) -> Right (Left Double)
+                (Float _)  -> Right (Left Float)
+typeOf (Bool _) = Left Bool
+typeOf (Str s)  = case s of
+                (String)  -> Right (Right String)
+                (Char)    -> Right (Right Char)
+typeOf _        = Left Error "Invalid Type"
 -- --
 evalInt :: NumberType -> Int
 evalInt t = case t of -- | Sort by type
