@@ -34,7 +34,7 @@ import Prelude hiding (Num)
 data NumberType = Int Int
                 | Float Float
                 | Double Double
-                deriving(Eq,Show)
+                deriving(Eq,Show,Ord)
 
 data StringType = String [Char]
                 | Char Char
@@ -44,6 +44,7 @@ data StringType = String [Char]
 data Exception = TypeError
                | TooFewArguments
                | TooManyArguments
+               | Unknown
                deriving(Eq,Show)
 
 data Type = Num  NumberType
@@ -53,14 +54,12 @@ data Type = Num  NumberType
           | Error Exception StringType -- | Return error with a message
           deriving(Eq,Show)
 
-data Operator = AddO | SubO | MulO | DivO | EquO
-
 data Cmd = Push Type  -- | Push all primative types to stack
-         | Add -- | Stack work
-         | Sub -- |      "
-         | Mul -- |      "
-         | Div -- |      "
-         | Equ -- |      "
+         | Addition -- | Stack work
+         | Subtract -- |      "
+         | Multiply -- |      "
+         | Divide -- |        "
+         | Equal -- |         "
          | IfElse Prog Prog -- | Conditional Statement piping
          | Define StringType [Variable] Prog  -- | Create a function
          | Call StringType [Type]             -- | Call function with arguments
@@ -81,35 +80,35 @@ cmd (Push v)     = \s -> case v of
                         (Bool b) -> Just (Bool b : s)
                         (Str st) -> Just (Str st : s)
                         _ -> Just (Error TypeError (String "Pushing failed -> not a valid stack type") : [])
-cmd Add          = \s -> case s of
+cmd Addition          = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i + j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a + b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c + d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e + f)) : s')
                         _ -> Just (Error TypeError (String "Addition failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Sub          = \s -> case s of
+cmd Subtract          = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i - j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a - b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c - d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e - f)) : s')
                         _ -> Just (Error TypeError (String "Subtraction failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Mul          = \s -> case s of
+cmd Multiply          = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i * j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a * b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c * d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e * f)) : s')
                         _ -> Just (Error TypeError (String "Multiplication failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Div          = \s -> case s of
+cmd Divide          = \s -> case s of
                     --    (Num x : Num y : s') -> Just (Num (x / y) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a `div` b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c / d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e / f)) : s')
                         _ -> Just (Error TypeError (String "Division failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Equ          = \s -> case s of
+cmd Equal          = \s -> case s of
                     --    (Num x : Num y : s')   -> Just (Bool (x == y) : s')
                         (Num i : Num j : s') -> case (i, j) of
                                 (Int a, Int b)       -> Just (Bool (a == b) : s')
@@ -130,31 +129,36 @@ cmd (IfElse t e) = \s -> case s of
 -- cmd (Call f t)   = \s -> case s of
 --                         ()
 
--- numericalEvaluation :: NumberType -> NumberType -> Operator -> Stack
--- numericalEvaluation l r AddO = case (l, r) of
---                                 (Int a, Int b)       -> (Num (Int (a + b))) : []
---                                 (Double c, Double d) -> (Num (Double (c + d))) : []
---                                 (Float e, Float f)   -> (Num (Float (e + f))) : []
--- numericalEvaluation (Int a, Int b, AddO) =
--- numericalEvaluation (Int a, Int b, SubO) = (Num (Int (a - b))) : []
--- numericalEvaluation (Int a, Int b, MulO) = (Num (Int (a * b))) : []
--- numericalEvaluation (Int a, Int b, DivO) = (Num (Int (a `div` b))) : []
--- numericalEvaluation (Int a, Int b, EquO) =: (Bool (a == b)) : []
+
+-- These bad boys below are easier ways to implement the core commands
+-- This will allow all arithmetic to be performed with the formula∷
+--     <operation-type> <value> <value>
+add :: Type -> Type -> Prog
+add x y = [ Push x, Push y, Addition ]
+
+sub :: Type -> Type -> Prog
+sub x y = [ Push x, Push y, Subtract ]
+
+mul :: Type -> Type -> Prog
+mul x y = [ Push x, Push y, Multiply ]
+
+divi :: Type -> Type -> Prog
+divi x y = [ Push x, Push y, Divide ]
+
+equ :: Type -> Type -> Prog
+equ x y = [ Push x, Push y, Equal ]
 
 
 
 
+quadruple :: NumberType -> Prog
+quadruple x = double x ++ [Push (Num x), Addition]
 
-quadruple :: NumberType -> Cmd
-quadruple (Int i)    = Call (String "double") [Num (Int i)]
-quadruple (Double d) = Call (String "double") [Num (Double d)]
-quadruple (Float f)  = Call (String "double") [Num (Float f)]
+double :: NumberType -> Prog
+double x = add (Num x) (Num x)
 
-double :: Cmd
-double = Define (String "double") [Char 'x'] [Push (Var (Char 'x')), Add]
-
-negate :: Cmd
-negate = Define (String "negate") [Char 'x'] [Push (Num (Int 0)), Push (Num (Int 1)), Sub, Push (Var (Char 'x')), Mul]
+negation :: NumberType -> Prog
+negation x = mul (Num (Int (-1))) (Num x)
 
 while :: Cmd
 while = undefined
@@ -162,19 +166,34 @@ while = undefined
     --            IfElse [Call (String "while" [Bool True])] [Call (String "while" [Bool False])]]
 
 
-typeOf :: Type -> Either Type (Either NumberType StringType)
-typeOf = undefined
--- typeOf (Num x) = case x of
---                 (Int _)    -> Right (Left Int)
---                 (Double _) -> Right (Left Double)
---                 (Float _)  -> Right (Left Float)
+
+
+-- typeOf :: Type -> Either Type (Either NumberType StringType)
+-- typeOf (Num x)  = case x of
+--                     (Int _)    -> Right (Left Int)
+--                     (Double _) -> Right (Left Double)
+--                     (Float _)  -> Right (Left Float)
 -- typeOf (Bool _) = Left Bool
 -- typeOf (Str s)  = case s of
---                 (String _)  -> Right (Right String)
---                 (Char _)    -> Right (Right Char)
+--                     (String _)  -> Right (Right String)
+--                     (Char _)    -> Right (Right Char)
+-- typeOf (Var _)  = Left Var
 -- typeOf _        = Left (Error (String "Invalid Type"))
--- --
+--
 
+
+
+lessThan :: NumberType -> NumberType -> Bool
+lessThan l r = (l < r)
+
+lessThanEqual :: NumberType -> NumberType -> Bool
+lessThanEqual l r = (l <= r)
+
+greaterThan :: NumberType -> NumberType -> Bool
+greaterThan l r = (l > r)
+
+greaterThanEqual :: NumberType -> NumberType -> Bool
+greaterThanEqual l r = (l >= r)
 
 evalInt :: NumberType -> Int
 evalInt t = case t of -- | Sort by type
@@ -207,12 +226,26 @@ prog (c:p) = \s -> case cmd c s of
 run :: Prog -> Maybe Stack
 run p = prog p []
 
+-- reverse :: StringType -> StringType
+-- reverse s = case s of
+--                 (String (c:cs)) -> (String )
+--                 (Char c) -> Char c
+-- reverse [] = []    --string is fully pushed
+-- reverse (c:cs) = \s -> case Char c s of
+--                        _ -> reverse cs
+
+-- | Hello there.
+    -- | General Kenobi
 
 
-test1 :: Prog
-test1 = [Push (Num (Int 5)), Push (Num (Double 2.5)), Add]
-
-
+-- testAdd :: Prog -- | Expected 7
+-- testAdd = [Push (Num (Int 5)), Push (Num (Int 2)), Add]
+--
+-- testBigProg :: Prog -- | Expected 73
+-- testBigProg = testAdd ++ [Push (Num (Int 10)), Mul, Push (Num (Int 3)), Add]-- , Push (Num (Int 4)), Div]
+--
+-- testBool :: Prog
+-- testBool = [Push (Bool (lessThan (Int 20) (Int 15))), IfElse testAdd testBigProg]
 
 -- exAdd1 :: Prog
 -- exAdd1  = [Push (Num 3), Push (Num 2), Add]     --Expect 5
