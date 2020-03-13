@@ -13,7 +13,7 @@
 > Conditionals
 > Recursion/loops
 > Stack manipulation operations
-> Procedures/functions with arguments
+> Procedures/static functions with arguments
 > Static type system
 > Strings and operations
 
@@ -23,10 +23,20 @@
 
 # How To Compile A SPP File
 1. ghci seapp.hs
-2. exAdd1
-3. exMul1
-4. exDiv1
-5. exIf1
 
-Note:
-> Known bugs include not compiling as our type system isn't fully furnished.
+## GOOD EXAMPLES
+2. goodAdd
+3. goodSub
+4. goodMul
+5. goodDivi
+6. goodEqu
+7. goodIf
+8. testCat
+
+## BAD EXAMPLES
+9. badAdd
+10. badSub
+11. badIf
+12. badWhile
+13. badReverse
+14. badEqu
