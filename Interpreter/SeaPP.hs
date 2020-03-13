@@ -5,7 +5,7 @@
 -- |                                                                        | --
 -- | Authors: Brenden Smith (932-546-035), Bryce Hahn (932-819-555),        | --
 -- |            Sheldon Roberts (933-021-566), April James (932-724-994)    | --
--- | Last Modified: 3/11/20                                                 | --
+-- | Last Modified: 3/12/20                                                 | --
 --------------------------------------------------------------------------------
 module SeaPP where
 import Prelude hiding (Num)
@@ -45,6 +45,7 @@ data Exception = TypeError
                | TooFewArguments
                | TooManyArguments
                | ExistingDefinition
+               | StackEmpty
                | Unknown
                deriving(Eq,Show)
 
@@ -71,7 +72,7 @@ data Cmd = Push Type -- | Push all primative types to stack
 
 type Prog = [Cmd]
 type Variable = StringType
-type Stack = [Type]
+type Stack = [Type]       -- Holds all valid types
 type Domain = Stack -> Maybe Stack
 
 -- define the command semantics in terms of a domain
@@ -127,8 +128,6 @@ cmd (IfElse t o)    = \s -> case s of
 --                             e ++
 --                             Just (Error ExistingDefinition (String "The variable name has already been assigned") : [])
 --                         else Just (Str (String "Variable assigned"))
--- cmd (Ref v)        e = lookup v e
-
 -- cmd (Call f t)   = \s -> case s of
 --                         ()
 
@@ -156,12 +155,13 @@ divi x y = [ Push x, Push y, Divide ]
 equ :: Type -> Type -> Prog
 equ x y = [ Push x, Push y, Equal ]
 
+-- ifelse will take a supplied bool, or conditional, along with 2 programs
 ifelse :: Type -> Prog -> Prog -> Prog
 ifelse (Bool b) t e = [ Push (Bool b), IfElse t e]
 ifelse _ _ _ = [ Push (Error TypeError (String "Conditional argument was not a Boolean value"))]
 
 
-
+-- | Some fun test progs
 quadruple :: NumberType -> Prog
 quadruple x = double x ++ [Push (Num x), Addition]
 
@@ -171,10 +171,18 @@ double x = add (Num x) (Num x)
 negation :: NumberType -> Prog
 negation x = mul (Num (Int (-1))) (Num x)
 
-while :: Stack -> Prog
-while = \st -> ifelse (Bool st)
-                    (while st)          -- | Then
-                    [Push (Bool False)] -- | Else
+
+-- | While semantics takes in a stack and program to run as variables and recursively
+-- |    executes until a false value is pushes onto the stack
+while :: Stack -> Prog -> Prog
+while [] _     = error (prettyError (Error StackEmpty (String "No variables found on stack")))
+while (s:ss) p = case (s:ss) of -- | pattern match stack types
+        (Bool False) : ss' -> [] -- | Stack contains a false, exit loop
+        (Bool True)  : ss' -> case (run p) of -- | Run the program and match its return stack
+                                (Just s') -> p ++ (while s' p)  -- | Run returned a stack with values
+                                _        -> error (prettyError (Error StackEmpty (String "No values found on stack"))) -- | Nothing on stack,
+        _ -> error (prettyError (Error TooFewArguments (String "No Bool on stack for loop")))
+
 
 
 
@@ -206,6 +214,8 @@ greaterThan l r = (l > r)
 greaterThanEqual :: NumberType -> NumberType -> Bool
 greaterThanEqual l r = (l >= r)
 
+
+-- Convert base type to string for printing purposes
 toString :: Type -> String
 toString t = case t of
             (Num (Int i))    -> show i ++ []
@@ -220,85 +230,109 @@ toString t = case t of
                                     (Char c)   -> show c ++ []
             (Error e m)      -> prettyError t
 
+-- Pop the stack that is passed
 pop :: Stack -> String
 pop [] = ""
 pop (s:ss) = toString s
 
+-- Reverse a string's order
 flipString :: String -> String
 flipString [] = ""
 flipString (c:cs) = flipString cs ++ toString (Str (Char c))
 
-strcat :: [String] -> String
-strcat [] = []
-strcat (t:ts) = t ++ (strcat ts)
+-- Concat a list of strings together into one
+--strcat :: [String] -> String
+--strcat [] = []
+--strcat (t:ts) = t ++ (strcat ts)
+
+-- Concat a list of strings into one
+strcatAb :: [Type] -> String
+strcatAb [] = ""
+strcatAb (t:ts) = case t of
+                  Str (String s) -> s ++ (strcatAb ts)
+                  _ -> error (prettyError (Error TypeError (String "Expected a String, recieved other type!")))
 
 
 
-
-
+--------------------------------------------------------------------------------
+-- |                        Evaluation Expressions                          -- |
+-- | These functions can be used to check for a suspected type. On type     -- |
+-- |    match the correct value or error is returned.                       -- |
+--------------------------------------------------------------------------------
 evalInt :: Type -> Int
 evalInt t = case t of -- | Sort by type
             (Num (Int i)) -> i
-            _ -> error "Expected an Int, recieved other type!" -- | Ignore all other types
+            _ -> error (prettyError (Error TypeError (String "Expected an Int, recieved other type!"))) -- | Ignore all other types
 
 evalIntP :: Prog -> Int
 evalIntP p = case (run p) of
-                    (Just [(Num (Int i))]) -> i
+            (Just [(Num (Int i))]) -> i
+            _ -> error (prettyError (Error TypeError (String "Expected an Int, recieved other type!")))
 
 evalDouble :: Type -> Double
 evalDouble t = case t of -- | Sort by type
             (Num (Double d)) -> d
-            _ -> error "Expected Double, recieved other type!" -- | Ignore all other types
+            _ -> error (prettyError (Error TypeError (String "Expected a Double, recieved other type!"))) -- | Ignore all other types
 
 evalDoubleP :: Prog -> Double
 evalDoubleP p = case (run p) of
-                    (Just [(Num (Double d))]) -> d
+            (Just [(Num (Double d))]) -> d
+            _ -> error (prettyError (Error TypeError (String "Expected a Double, recieved other type!")))
 
 evalFloat :: Type -> Float
 evalFloat t = case t of -- | Sort by type
             (Num (Float x)) -> x
-            _ -> error "Expected Float, recieved other type!"  -- | Ignore all other types
+            _ -> error (prettyError (Error TypeError (String "Expected a Float, recieved other type!")))  -- | Ignore all other types
 
 evalFloatP :: Prog -> Float
 evalFloatP p = case (run p) of
-                    (Just [(Num (Float f))]) -> f
+            (Just [(Num (Float f))]) -> f
+            _ -> error (prettyError (Error TypeError (String "Expected a Float, recieved other type!")))
 
 evalBool :: Type -> Bool
 evalBool t = case t of -- | Sort by type
             (Bool b) -> b
-            _ -> error "Expected Bool, recieved other type!"   -- | Ignore all other types
+            _ -> error (prettyError (Error TypeError (String "Expected a Bool, recieved other type!")))   -- | Ignore all other types
 
 evalBoolP :: Prog -> Bool
 evalBoolP p = case (run p) of
-                    (Just [(Bool b)]) -> b
+            (Just [(Bool b)]) -> b
+            _ -> error (prettyError (Error TypeError (String "Expected a Bool, recieved other type!")))
 
 evalString :: Type -> String
 evalString t = case t of -- | Sort by type
-              (Str (String s)) -> s
-              _ -> error "Expected String, recieved other type!"   -- | Ignore all other types
+            (Str (String s)) -> s
+            _ -> error (prettyError (Error TypeError (String "Expected a String, recieved other type!")))   -- | Ignore all other types
 
 evalStringP :: Prog -> String
 evalStringP p = case (run p) of
-                  (Just [(Str (String s))]) -> s
+            (Just [(Str (String s))]) -> s
+            _ -> error (prettyError (Error TypeError (String "Expected a String, recieved other type!")))
 
 evalChar :: Type -> Char
 evalChar t = case t of -- | Sort by type
-              (Str (Char c)) -> c
-              _ -> error "Expected Character, received other type!" -- | Ignore all other types
+            (Str (Char c)) -> c
+            _ -> error (prettyError (Error TypeError (String "Expected a Character, received other type!"))) -- | Ignore all other types
 
 evalCharP :: Prog -> Char
 evalCharP p = case (run p) of
-                  (Just [(Str (Char c))]) -> c
+            (Just [(Str (Char c))]) -> c
+            _ -> error (prettyError (Error TypeError (String "Expected a Character, recieved other type!")))
 
 evalVar :: Type -> Variable
 evalVar t = case t of -- | Sort by type
             (Var v) -> v
-            _ -> error "Expected Variable, recieved other type!"   -- | Ignore all other types
+            _ -> error (prettyError (Error TypeError (String "Expected Variable, recieved other type!")))   -- | Ignore all other types
 
+
+--------------------------------------------------------------------------------
+-- |              Pretty Prints
+-- | These prints will remove some of the text heavy jargon that is present
+-- |      under the hood to deliver cleaner outputs
 prettyError :: Type -> String
 prettyError t = case t of -- | Sort by type
             (Error e (String m)) -> prettyException e ++ " Exception: " ++ m
-            _ -> error "Expected Error, received other type!" -- | META
+            _ -> error (prettyError (Error TypeError (String "Expected Error, received other type!"))) -- | META
 
 prettyException :: Exception -> String
 prettyException e = case e of
@@ -306,6 +340,7 @@ prettyException e = case e of
                     TooFewArguments    -> "Too Few Arguments" ++ []
                     TooManyArguments   -> "Too Many Arguments" ++ []
                     ExistingDefinition -> "Existing Definition" ++ []
+                    StackEmpty         -> "Empty Stack" ++ []
                     Unknown            -> "Unknown" ++ []
 
 -- Make everything a bit nicer to look at
@@ -314,7 +349,7 @@ prettyPrint [] = Nothing
 prettyPrint (c:cs) = Just (c:cs) --show (toString c) ++ prettyPrint cs
 
 
-
+-- Check if stack is empty
 isEmpty :: Stack -> Bool
 isEmpty [] = True
 isEmpty _  = False
@@ -327,37 +362,15 @@ prog (c:p) = \s -> case cmd c s of
                      Just s' -> prog p s'
                      _ -> Nothing
 
--- prog :: Prog -> Environment Type -> Type
--- prog []    _ = \s -> Error Unknown (String "End of program error")
--- prog (c:p) e = \s -> case (cmd c e s) of
---
---                     Just (Num n) : s'     -> Num n
---                     Just (Str s) : s'     -> Str s
---                     Just (Bool b) : s'    -> Bool b
---                     Just (Var v) : s'     -> Var v
---                     Just (Error e m) : s' -> Error e m
---                     _                -> Error Unknown (String "Unknown command return.")
-
+-- Execute a passed program
 run :: Prog -> Maybe Stack
 run p = prog p []
 
 
+
+
 -- | Hello there.
     -- | General Kenobi
-
-
-
-
-
-
--- | Type Semantics
-
--- type := Num  NumberType
---       | Bool Bool
---       | Str  StringType
---       | Var  Variable
---       | Error Exception StringType
-
 
 
 
@@ -371,20 +384,21 @@ goodSub = sub (Num (Int 20)) (Num (Int 7))
 goodMul :: Prog -- | Expected 7
 goodMul = mul (Num (Float 20.4)) (Num (Float 6.2))
 
-goodDivi :: Prog
+goodDivi :: Prog -- | Expected 0.328...
 goodDivi = divi (Num (Double 2.0)) (Num (Double 6.1))
 
-goodEqu :: Prog
+goodEqu :: Prog -- | Expected True
 goodEqu = equ (Str (String "Hello")) (Str (String "World"))
 
-goodIf :: Prog
+goodIf :: Prog -- |
 goodIf = ifelse (Bool (lessThanEqual (Int 5) (Int 10))) goodDivi goodSub
 
--- testIsEmptyG :: Bool            -- should return True
--- testIsEmptyG = (isEmpty (lessThanEqual (Int 50) (Int 100)))
+testCat :: String -- | Should return a concatenated string
+testCat = (strcatAb [Str (String "it's a small world"), Str (String " after all")])
 
-testReverseG :: String
-testReverseG = (strcat ["it's a small world", " after all"])
+-- bigNumbers :: Prog
+-- bigNumbers = divi ( Num (Int (evalIntP ( mul ( Num (Int (evalIntP ( mul (Num (Int 10)) (Num (Int 7)) ) ) ) ) (Num (Int 20)) ) ) ) ) (Num (Int 6))
+
 
 
 -- | BAD EXAMPLES
@@ -397,23 +411,14 @@ badSub = sub (Num (Int 5)) (Num(Double 2.0))
 badIf :: Prog -- | Error bad syntax; No bool
 badIf = ifelse (Num (Int 5)) (add (Num (Int 5)) (Num (Int 5))) (add (Num (Int 10)) (Num (Int 29)))
 
+badWhile :: Prog
+badWhile = [Push (Num (Int 0))] ++ while [Bool True] [ Push (Num (Int 1)), Addition ]
 
+badReverse :: Prog
+badReverse = [Push (Str (String (strcatAb [Bool True, Num (Int 123)])))]
 
-
--- testIsEmptyB :: Bool
--- testIsEmptyB = (isEmpty (Str (String "string")))
-
--- testReverseB :: String
--- testReverseB = (strcat (Bool True) (123))
-
-
-
-
-
-
-
-
-
+badEqu :: Prog -- | Type mismatch
+badEqu = equ (Bool (False)) (Num (Int 12))
 
 
 
