@@ -165,7 +165,14 @@ while = undefined
 --while = Define (String "while") [Char 'b'] [Push (Var (Char 'b')),
     --            IfElse [Call (String "while" [Bool True])] [Call (String "while" [Bool False])]]
 
+pop :: Stack -> String
+pop [] = []
+pop s = [\s] ++ pop s
 
+reverse :: String -> String
+reverse [] = pop s
+reverse (c:cs) = case c of
+                 c  -> (reverse cs) . (Push c)
 
 
 -- typeOf :: Type -> Either Type (Either NumberType StringType)
