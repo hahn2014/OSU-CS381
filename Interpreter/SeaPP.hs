@@ -171,8 +171,11 @@ pop s = [\s] ++ pop s
 
 reverse :: String -> String
 reverse [] = pop s
-reverse (c:cs) = case c of
-                 c  -> (reverse cs) . (Push c)
+reverse (c:cs) = (reverse cs) . (Push c)
+
+concatenate :: [String] -> String
+concatenate [] = []
+concatenate (t:ts) = t ++ (concatenate ts)
 
 
 -- typeOf :: Type -> Either Type (Either NumberType StringType)
@@ -232,14 +235,6 @@ prog (c:p) = \s -> case cmd c s of
 
 run :: Prog -> Maybe Stack
 run p = prog p []
-
--- reverse :: StringType -> StringType
--- reverse s = case s of
---                 (String (c:cs)) -> (String )
---                 (Char c) -> Char c
--- reverse [] = []    --string is fully pushed
--- reverse (c:cs) = \s -> case Char c s of
---                        _ -> reverse cs
 
 -- | Hello there.
     -- | General Kenobi
