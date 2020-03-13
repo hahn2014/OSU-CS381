@@ -44,6 +44,7 @@ data StringType = String [Char]
 data Exception = TypeError
                | TooFewArguments
                | TooManyArguments
+               | ExistingDefinition
                | Unknown
                deriving(Eq,Show)
 
@@ -54,15 +55,16 @@ data Type = Num  NumberType
           | Error Exception StringType -- | Return error with a message
           deriving(Eq,Show)
 
-data Cmd = Push Type  -- | Push all primative types to stack
+data Cmd = Push Type -- | Push all primative types to stack
          | Addition -- | Stack work
          | Subtract -- |      "
          | Multiply -- |      "
          | Divide -- |        "
          | Equal -- |         "
          | IfElse Prog Prog -- | Conditional Statement piping
-         | Define StringType [Variable] Prog  -- | Create a function
-         | Call StringType [Type]             -- | Call function with arguments
+         | Define StringType [Variable] Prog -- | Create a function
+         | Ref Variable -- | Variable reference
+         | Call StringType [Type] -- | Call function with arguments
          deriving(Eq,Show)
 
 
@@ -71,44 +73,44 @@ type Prog = [Cmd]
 type Variable = StringType
 type Stack = [Type]
 type Domain = Stack -> Maybe Stack
-
+type Environment a = [(Variable,a)]
 
 -- define the command semantics in terms of a domain
-cmd :: Cmd -> Domain
-cmd (Push v)     = \s -> case v of
+cmd :: Cmd -> Environment Type -> Domain
+cmd (Push v)       e = \s -> case v of
                         (Num i)  -> Just (Num i : s)
                         (Bool b) -> Just (Bool b : s)
                         (Str st) -> Just (Str st : s)
                         _ -> Just (Error TypeError (String "Pushing failed -> not a valid stack type") : [])
-cmd Addition          = \s -> case s of
+cmd Addition       e = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i + j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a + b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c + d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e + f)) : s')
                         _ -> Just (Error TypeError (String "Addition failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Subtract          = \s -> case s of
+cmd Subtract       e = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i - j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a - b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c - d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e - f)) : s')
                         _ -> Just (Error TypeError (String "Subtraction failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Multiply          = \s -> case s of
+cmd Multiply       e = \s -> case s of
                     --    (Num i : Num j : s') -> Just (Num (i * j) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a * b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c * d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e * f)) : s')
                         _ -> Just (Error TypeError (String "Multiplication failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Divide          = \s -> case s of
+cmd Divide         e = \s -> case s of
                     --    (Num x : Num y : s') -> Just (Num (x / y) : s')
                         (Num i : Num j : s') -> case (i, j) of
                             (Int a, Int b)       -> Just (Num (Int (a `div` b)) : s')
                             (Double c, Double d) -> Just (Num (Double (c / d)) : s')
                             (Float e, Float f)   -> Just (Num (Float (e / f)) : s')
                         _ -> Just (Error TypeError (String "Division failed -> one or more values on the stack were not of the Numerical Type") : [])
-cmd Equal          = \s -> case s of
+cmd Equal          e = \s -> case s of
                     --    (Num x : Num y : s')   -> Just (Bool (x == y) : s')
                         (Num i : Num j : s') -> case (i, j) of
                                 (Int a, Int b)       -> Just (Bool (a == b) : s')
@@ -117,17 +119,24 @@ cmd Equal          = \s -> case s of
                         (Bool i : Bool j : s') -> Just (Bool (i == j) : s')
                         (Str z : Str k : s')   -> Just (Bool (z == k) : s')
                         _ -> Just (Error TypeError (String "Comparison failed -> one or more values on the stack were not a valid type") : [])
-cmd (IfElse t e) = \s -> case s of
-                        (Bool True : s')  -> prog t s'  -- if statement was true
-                        (Bool False : s') -> prog e s'  -- if statement was false
+cmd (IfElse t o)   e = \s -> case s of
+                        (Bool True : s')  -> prog t e s'  -- if statement was true
+                        (Bool False : s') -> prog o e s'  -- otherwise statement was false
                         _ -> Just (Error TypeError (String "Conditional failed -> value on stack was not a Boolean Type") : [])
--- Don't need to include Define and Call in the cmd function-no need to
--- evaluate/ add to domain
--- cmd (Define f t p) = \s -> case s of
---                         (Num n : s') -> prog p s'
---                         _ -> Nothing
+
+-- cmd (Define s v p) e = if (inLookup (lookup s e)) then -- | Search stack for existing function name
+--                             e ++
+--                             Just (Error ExistingDefinition (String "The variable name has already been assigned") : [])
+--                         else Just (Str (String "Variable assigned"))
+-- cmd (Ref v)        e = lookup v e
+
 -- cmd (Call f t)   = \s -> case s of
 --                         ()
+
+
+inLookup :: Maybe a -> Bool
+inLookup (Just a) = True
+inLookup Nothing  = False
 
 
 -- These bad boys below are easier ways to implement the core commands
@@ -149,7 +158,12 @@ equ :: Type -> Type -> Prog
 equ x y = [ Push x, Push y, Equal ]
 
 
+-- empty :: Environment a
+-- empty e = []
 
+-- get :: Variable -> Environment a -> a
+-- get v e = case (lookup (v e)) of
+--             (Just a) -> a
 
 quadruple :: NumberType -> Prog
 quadruple x = double x ++ [Push (Num x), Addition]
@@ -165,6 +179,50 @@ while = undefined
 --while = Define (String "while") [Char 'b'] [Push (Var (Char 'b')),
     --            IfElse [Call (String "while" [Bool True])] [Call (String "while" [Bool False])]]
 
+
+
+--
+-- typeOf :: Type -> a
+-- typeOf a = case a of
+--             (Num n)     -> case n of
+--                             (Int _)     -> Int
+--                             (Double _)  -> Double
+--                             (Float _)   -> Float
+--             (Bool _)    -> Bool
+--             (Str s)     -> case s of
+--                             (String _) -> String
+--                             (Char _)   -> Char
+--             (Var _)     -> Var
+--             (Error _ _) -> Error
+
+
+-- | Boolean manipulation testing
+lessThan :: NumberType -> NumberType -> Bool
+lessThan l r = (l < r)
+
+lessThanEqual :: NumberType -> NumberType -> Bool
+lessThanEqual l r = (l <= r)
+
+greaterThan :: NumberType -> NumberType -> Bool
+greaterThan l r = (l > r)
+
+greaterThanEqual :: NumberType -> NumberType -> Bool
+greaterThanEqual l r = (l >= r)
+
+toString :: Type -> String
+toString t = case t of
+            (Num (Int i))    -> show i ++ []
+            (Num (Float f))  -> show f ++ []
+            (Num (Double d)) -> show d ++ []
+            (Str (String s)) -> s
+            (Str (Char c))   -> show c ++ []
+            (Bool True)      -> "True"
+            (Bool False)     -> "False"
+            (Var v)          -> case v of
+                                    (String s) -> s
+                                    (Char c)   -> show c ++ []
+            (Error e m)      -> prettyError t
+
 pop :: Stack -> String
 pop [] = []
 pop s = [\s] ++ pop s
@@ -178,44 +236,62 @@ concatenate [] = []
 concatenate (t:ts) = t ++ (concatenate ts)
 
 
--- typeOf :: Type -> Either Type (Either NumberType StringType)
--- typeOf (Num x)  = case x of
---                     (Int _)    -> Right (Left Int)
---                     (Double _) -> Right (Left Double)
---                     (Float _)  -> Right (Left Float)
--- typeOf (Bool _) = Left Bool
--- typeOf (Str s)  = case s of
---                     (String _)  -> Right (Right String)
---                     (Char _)    -> Right (Right Char)
--- typeOf (Var _)  = Left Var
--- typeOf _        = Left (Error (String "Invalid Type"))
---
 
 
 
-lessThan :: NumberType -> NumberType -> Bool
-lessThan l r = (l < r)
-
-lessThanEqual :: NumberType -> NumberType -> Bool
-lessThanEqual l r = (l <= r)
-
-greaterThan :: NumberType -> NumberType -> Bool
-greaterThan l r = (l > r)
-
-greaterThanEqual :: NumberType -> NumberType -> Bool
-greaterThanEqual l r = (l >= r)
-
-evalInt :: NumberType -> Int
+evalInt :: Type -> Int
 evalInt t = case t of -- | Sort by type
-                (Int i) -> i -- | Only look for integers
-                _ -> error "Expected an Int, got a decimal value!" -- | Ignore floats and doubles
+            (Num (Int i)) -> i
+            _ -> error "Expected an Int, recieved other type!" -- | Ignore all other types
 
+evalDouble :: Type -> Double
+evalDouble t = case t of -- | Sort by type
+            (Num (Double d)) -> d
+            _ -> error "Expected Double, recieved other type!" -- | Ignore all other types
 
- -- | Helper function to evaluate an Expr to an Bool.
--- evalBool :: Type -> Bool
--- evalBool t = case t of -- | Sort by type
---                 (Bool b) -> b -- | single out a boolean value
---                 _ -> error "internal error: expected Bool, got something else!"
+evalFloat :: Type -> Float
+evalFloat t = case t of -- | Sort by type
+            (Num (Float x)) -> x
+            _ -> error "Expected Float, recieved other type!"  -- | Ignore all other types
+
+evalBool :: Type -> Bool
+evalBool t = case t of -- | Sort by type
+            (Bool b) -> b
+            _ -> error "Expected Bool, recieved other type!"   -- | Ignore all other types
+
+evalString :: Type -> String
+evalString t = case t of -- | Sort by type
+              (Str (String s)) -> s
+              _ -> error "Expected String, recieved other type!"   -- | Ignore all other types
+
+evalChar :: Type -> Char
+evalChar t = case t of -- | Sort by type
+              (Str (Char c)) -> c
+              _ -> error "Expected Character, received other type!" -- | Ignore all other types
+
+evalVar :: Type -> Variable
+evalVar t = case t of -- | Sort by type
+            (Var v) -> v
+            _ -> error "Expected Variable, recieved other type!"   -- | Ignore all other types
+
+prettyError :: Type -> String
+prettyError t = case t of -- | Sort by type
+            (Error e (String m)) -> prettyException e ++ " Exception: " ++ m
+            _ -> error "Expected Error, received other type!" -- | META
+
+prettyException :: Exception -> String
+prettyException e = case e of
+                    TypeError          -> "Invalid Type" ++ []
+                    TooFewArguments    -> "Too Few Arguments" ++ []
+                    TooManyArguments   -> "Too Many Arguments" ++ []
+                    ExistingDefinition -> "Existing Definition" ++ []
+                    Unknown            -> "Unknown" ++ []
+
+-- Make everything a bit nicer to look at
+prettyPrint :: Stack -> Maybe Stack
+prettyPrint [] = Nothing
+prettyPrint (c:cs) = Just (c:cs) show (toString c) ++ prettyPrint cs
+
 
 
 isEmpty :: Stack -> Bool
@@ -226,18 +302,19 @@ isEmpty _  = False
 -- strEqu
 
 -- | Takes a Prog (list of Cmd),
-prog :: Prog -> Domain
-prog []    = \s -> Just s
-prog (c:p) = \s -> case cmd c s of
-                     Just s' -> prog p s'
+prog :: Prog -> Environment Type -> Domain
+prog []    _ = \s -> prettyPrint s
+prog (c:p) e = \s -> case (cmd c e s) of
+                     Just s' -> prog p e s'
                      _ -> Nothing
 
 
 run :: Prog -> Maybe Stack
-run p = prog p []
+run p = prog p [] []
 
--- | Hello there.
-    -- | General Kenobi
+
+ex1 :: Prog
+ex1 = negation (sub (quadruple 72) (Num 30))
 
 -- good ex
 testConcatenateG :: String
@@ -247,12 +324,31 @@ testConcatenate = (concatenate "123" "456")
 testConcatenateB :: String
 testConcatenateB = (concatenate 123 456)
 
+-- reverse :: StringType -> StringType
+-- reverse s = case s of
+--                 (String (c:cs)) -> (String )
+--                 (Char c) -> Char c
+-- reverse [] = []    --string is fully pushed
+-- reverse (c:cs) = \s -> case Char c s of
+--                        _ -> reverse cs
+
+
+
+
+
+-- | Hello there.
+    -- | General Kenobi
+
+
+
+
+
 -- testAdd :: Prog -- | Expected 7
--- testAdd = [Push (Num (Int 5)), Push (Num (Int 2)), Add]
---
+-- testAdd = add (Int 5) (Int 2)
+
 -- testBigProg :: Prog -- | Expected 73
 -- testBigProg = testAdd ++ [Push (Num (Int 10)), Mul, Push (Num (Int 3)), Add]-- , Push (Num (Int 4)), Div]
---
+
 -- testBool :: Prog
 -- testBool = [Push (Bool (lessThan (Int 20) (Int 15))), IfElse testAdd testBigProg]
 
