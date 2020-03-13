@@ -239,6 +239,13 @@ run p = prog p []
 -- | Hello there.
     -- | General Kenobi
 
+-- good ex
+testConcatenateG :: String
+testConcatenate = (concatenate "123" "456")
+
+-- bad ex
+testConcatenateB :: String
+testConcatenateB = (concatenate 123 456)
 
 -- testAdd :: Prog -- | Expected 7
 -- testAdd = [Push (Num (Int 5)), Push (Num (Int 2)), Add]
